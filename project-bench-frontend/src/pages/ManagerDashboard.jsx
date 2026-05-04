@@ -30,7 +30,7 @@ export default function ManagerDashboard() {
       const [dashRes, empRes, projRes, teamRes] = await Promise.all([
         api.get('/manager/dashboard'),
         api.get('/manager/search'),
-        api.get('/admin/projects/all'),
+        api.get('/manager/projects'),
         api.get('/manager/my-team')
       ])
 

@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Container, Row, Col, Form, Button, Card, Alert } from 'react-bootstrap'
 import { useAuth } from '../context/AuthContext'
+import errorLogger from '../utils/errorLogger'
+import routeLogger from '../utils/routeLogger'
 import '../styles/auth.css'
 
 export default function Login() {
@@ -9,26 +11,107 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
+  const [fieldErrors, setFieldErrors] = useState({})
+  const { login, user } = useAuth()
   const navigate = useNavigate()
+
+  // Email validation regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  // Real-time email validation
+  const validateEmail = (value) => {
+    const errors = {}
+    if (!value) {
+      errors.email = 'Email is required'
+    } else if (!emailRegex.test(value)) {
+      errors.email = 'Please enter a valid email address'
+    }
+    return errors
+  }
+
+  // Real-time password validation
+  const validatePassword = (value) => {
+    const errors = {}
+    if (!value) {
+      errors.password = 'Password is required'
+    } else if (value.length < 6) {
+      errors.password = 'Password must be at least 6 characters'
+    }
+    return errors
+  }
+
+  // Handle email change with validation
+  const handleEmailChange = (e) => {
+    const value = e.target.value
+    setEmail(value)
+    const errors = validateEmail(value)
+    setFieldErrors(prev => {
+      const newErrors = { ...prev }
+      if (Object.keys(errors).length > 0) {
+        newErrors.email = errors.email
+      } else {
+        delete newErrors.email
+      }
+      return newErrors
+    })
+  }
+
+  // Handle password change with validation
+  const handlePasswordChange = (e) => {
+    const value = e.target.value
+    setPassword(value)
+    const errors = validatePassword(value)
+    setFieldErrors(prev => {
+      const newErrors = { ...prev }
+      if (Object.keys(errors).length > 0) {
+        newErrors.password = errors.password
+      } else {
+        delete newErrors.password
+      }
+      return newErrors
+    })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    
+    // Validate fields before submit
+    const emailErrors = validateEmail(email)
+    const passwordErrors = validatePassword(password)
+    
+    if (Object.keys(emailErrors).length > 0 || Object.keys(passwordErrors).length > 0) {
+      setFieldErrors({ ...emailErrors, ...passwordErrors })
+      errorLogger.warn('Login validation failed', null)
+      return
+    }
+
     setLoading(true)
 
     try {
+      errorLogger.info(`Login attempt for email: ${email}`)
       const user = await login(email, password)
       
+      errorLogger.info(`Login successful for user: ${user.email} (${user.role})`)
+      routeLogger.logUserNavigation(
+        user.role === 'Admin' ? '/admin/dashboard' : 
+        user.role === 'Manager' ? '/manager/dashboard' : 
+        '/employee/dashboard',
+        user.role,
+        'login-redirect'
+      )
+      
       if (user.role === 'Admin') {
-        navigate('/admin/dashboard')
+        navigate('/admin/dashboard', { replace: true })
       } else if (user.role === 'Manager') {
-        navigate('/manager/dashboard')
+        navigate('/manager/dashboard', { replace: true })
       } else {
-        navigate('/employee/dashboard')
+        navigate('/employee/dashboard', { replace: true })
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed')
+      const errorMessage = err.response?.data?.message || 'Login failed'
+      setError(errorMessage)
+      errorLogger.error('Login failed', err)
     } finally {
       setLoading(false)
     }
@@ -53,9 +136,13 @@ export default function Login() {
                       type="email"
                       placeholder="Enter email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={handleEmailChange}
+                      isInvalid={!!fieldErrors.email}
                       required
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {fieldErrors.email}
+                    </Form.Control.Feedback>
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -64,9 +151,13 @@ export default function Login() {
                       type="password"
                       placeholder="Enter password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={handlePasswordChange}
+                      isInvalid={!!fieldErrors.password}
                       required
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {fieldErrors.password}
+                    </Form.Control.Feedback>
                   </Form.Group>
 
                   <Button

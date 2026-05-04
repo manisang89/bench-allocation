@@ -2,14 +2,16 @@ import React from 'react'
 import { Container, Navbar, Nav, Dropdown } from 'react-bootstrap'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import routeLogger from '../utils/routeLogger'
 
 export default function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
+    routeLogger.log('/', 'logout', { user: user?.email, role: user?.role })
     logout()
-    navigate('/login')
+    navigate('/', { replace: true })
   }
 
   return (
